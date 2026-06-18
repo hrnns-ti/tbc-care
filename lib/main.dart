@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'core/database/medication_repository.dart';
 import 'models/medication_record.dart';
 import 'features/alarm/alarm_service.dart';
+import 'core/utils/camera_service.dart';
 
 late Isar isar;
 
@@ -46,115 +48,178 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// Gunakan ConsumerWidget (bukan StatelessWidget) agar bisa membaca Provider
+final CameraService _cameraService = CameraService();
+
 class DashboardPoC extends ConsumerWidget {
   const DashboardPoC({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Membaca state streak saat ini
     final streakAsyncValue = ref.watch(streakProvider);
     final repo = ref.read(medicationRepoProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dashboard Kepatuhan'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              'Streak Minum Obat Anda:',
-              style: TextStyle(fontSize: 18),
-            ),
-            const SizedBox(height: 10),
-
-            // Menangani status loading, error, dan data dari FutureProvider
-            streakAsyncValue.when(
-              loading: () => const CircularProgressIndicator(),
-              error: (err, stack) => Text('Error: $err'),
-              data: (streak) => Text(
-                '$streak Hari',
-                style: const TextStyle(
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.teal
+      backgroundColor: const Color(0xFFFAFAFA), // Warna background off-white yang hangat
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header Editorial Style
+              const Text(
+                'Kepatuhan\nPengobatan',
+                style: TextStyle(
+                  fontSize: 36,
+                  height: 1.1,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -1.0,
+                  color: Color(0xFF1A1A1A),
                 ),
               ),
-            ),
+              const SizedBox(height: 48),
 
-            const SizedBox(height: 40),
+              // Streak Card Minimalist
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'STREAK SAAT INI',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.5,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    streakAsyncValue.when(
+                      loading: () => const SizedBox(
+                        height: 48,
+                        width: 48,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      error: (err, stack) => Text('Error: $err'),
+                      data: (streak) => Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            '$streak',
+                            style: const TextStyle(
+                              fontSize: 72,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -2.0,
+                              color: Colors.teal,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Hari',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
-            ElevatedButton.icon(
-              onPressed: () async {
-                // Ambil jumlah data yang ada untuk memanipulasi tanggal mundur ke belakang
-                final recordsCount = await repo.getAllRecords().then((list) => list.length);
+              const Spacer(),
 
-                // Logika Simulasi:
-                // Klik 1: Insert data hari ini
-                // Klik 2: Insert data kemarin (-1 hari)
-                // Klik 3: Insert data lusa kemarin (-2 hari), dst.
-                final simulatedDate = DateTime.now().subtract(Duration(days: recordsCount));
+              // Tombol Kamera Utama
+              SizedBox(
+                width: double.infinity,
+                height: 64,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final status = await Permission.camera.request();
+                    if (status.isGranted) {
+                      final path = await _cameraService.takeMedicationPhoto();
 
-                // Bypass fungsi standar dan langsung tembak ke Isar untuk testing
-                await repo.db.writeTxn(() async {
-                  final record = MedicationRecord()
-                    ..scheduledTime = simulatedDate
-                    ..takenTime = simulatedDate
-                    ..isTaken = true
-                    ..imagePath = "/dummy/path/foto_$recordsCount.jpg";
+                      if (path != null && context.mounted) {
+                        final now = DateTime.now();
+                        await repo.db.writeTxn(() async {
+                          final record = MedicationRecord()
+                            ..scheduledTime = now
+                            ..takenTime = now
+                            ..isTaken = true
+                            ..imagePath = path;
 
-                  await repo.db.medicationRecords.put(record);
-                });
+                          await repo.db.medicationRecords.put(record);
+                        });
 
-                // Refresh UI
-                ref.invalidate(streakProvider);
-              },
-              icon: const Icon(Icons.history),
-              label: const Text('Simulasi Tambah Hari Streak'),
-            ),
+                        ref.invalidate(streakProvider);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Konfirmasi dicatat. Terus pertahankan!'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    } else {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Izin kamera ditolak.')),
+                        );
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1A1A1A), // Hitam pekat tegas
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Text(
+                    'Konfirmasi Minum Obat',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
 
-            const SizedBox(height: 10),
-
-// Tombol tambahan untuk mereset database jika kamu ingin mengulang dari 0
-            TextButton.icon(
-              onPressed: () async {
-                await repo.db.writeTxn(() async {
-                  await repo.db.medicationRecords.clear();
-                });
-                ref.invalidate(streakProvider);
-              },
-              icon: const Icon(Icons.delete_forever, color: Colors.red),
-              label: const Text('Reset Semua Data', style: TextStyle(color: Colors.red)),
-            ),
-
-            const SizedBox(height: 20),
-            const Divider(),
-            const SizedBox(height: 20),
-
-            ElevatedButton.icon(
-              onPressed: () async {
-                // 1. Minta izin dulu! Pop-up akan muncul saat pertama kali diklik
-                await AlarmService.requestPermission();
-
-                // 2. Jadwalkan alarm
-                final scheduledTime = DateTime.now().add(const Duration(seconds: 10));
-                await AlarmService.scheduleAlarm(scheduledTime, 999);
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Alarm dijadwalkan dalam 10 detik! Tutup aplikasi sekarang.')),
-                );
-              },
-              icon: const Icon(Icons.notifications_active),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.amber),
-              label: const Text('Test Alarm (10 Detik)', style: TextStyle(color: Colors.black)),
-            )
-          ],
+              // Tombol Debugging (Hanya tampil sementara saat dev)
+              Center(
+                child: TextButton(
+                  onPressed: () async {
+                    await repo.db.writeTxn(() async {
+                      await repo.db.medicationRecords.clear();
+                    });
+                    ref.invalidate(streakProvider);
+                  },
+                  style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+                  child: const Text('Reset Data (Debug)'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
-
