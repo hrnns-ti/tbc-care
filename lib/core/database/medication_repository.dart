@@ -1,65 +1,106 @@
 import 'package:isar/isar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../main.dart';
+// Sesuaikan path import ini agar mengarah ke file model dan main.dart-mu
 import '../../models/medication_record.dart';
+import '../../main.dart'; // Untuk mengakses instance global 'isar'
 
+// ======================================================================
+// PROVIDER UNTUK REPOSITORY
+// Ini yang dipanggil oleh streakProvider di main.dart
+// ======================================================================
+final medicationRepoProvider = Provider<MedicationRepository>((ref) {
+  return MedicationRepository(isar);
+});
+
+// ======================================================================
+// KELAS REPOSITORY
+// Bertugas sebagai jembatan antara Database Isar dan UI
+// ======================================================================
 class MedicationRepository {
   final Isar db;
 
   MedicationRepository(this.db);
 
-  // 1. Tambah jadwal baru
-  Future<void> addRecord(DateTime schedule) async {
-    final record = MedicationRecord()..scheduledTime = schedule;
+  // Fungsi untuk mengambil semua riwayat (bisa dipakai untuk kalender nanti)
+  Future<List<MedicationRecord>> getAllRecords() async {
+    return await db.medicationRecords.where().findAll();
+  }
 
+  // Fungsi untuk menyimpan record baru setelah pasien konfirmasi foto
+  Future<void> addRecord(MedicationRecord record) async {
     await db.writeTxn(() async {
       await db.medicationRecords.put(record);
     });
   }
 
-  // 2. Konfirmasi minum obat
-  Future<void> markAsTaken(int id, String photoPath) async {
-    await db.writeTxn(() async {
-      final record = await db.medicationRecords.get(id);
-      if (record != null) {
-        record.isTaken = true;
-        record.takenTime = DateTime.now();
-        record.imagePath = photoPath;
-        await db.medicationRecords.put(record);
-      }
-    });
-  }
-
-  // 3. Mengambil semua riwayat (Untuk kalender)
-  Future<List<MedicationRecord>> getAllRecords() async {
-    return await db.medicationRecords.where().findAll();
-  }
-
-  // 4. Kalkulasi Streak
+  // ======================================================================
+  // LOGIKA STREAK KETAT (Strict Adherence)
+  // ======================================================================
   Future<int> calculateCurrentStreak() async {
-    // Ambil data yang sudah diminum, urutkan dari yang terbaru
-    final takenRecords = await db.medicationRecords
-        .filter()
-        .isTakenEqualTo(true)
-        .sortByTakenTimeDesc()
-        .findAll();
+    // 1. Ambil SEMUA data dari database
+    final allRecords = await db.medicationRecords.where().findAll();
 
-    if (takenRecords.isEmpty) return 0;
+    if (allRecords.isEmpty) return 0;
 
-    int streak = 1;
-    DateTime lastTakenDate = takenRecords.first.takenTime!;
+    // 2. Kelompokkan data per Hari (Tanggal Kalender) tanpa jam
+    Map<DateTime, List<MedicationRecord>> recordsByDate = {};
+    for (var record in allRecords) {
+      final t = record.scheduledTime;
+      final date = DateTime(t.year, t.month, t.day);
+      recordsByDate.putIfAbsent(date, () => []).add(record);
+    }
 
-    // Looping untuk mengecek apakah hari sebelumnya berturut-turut
-    for (int i = 1; i < takenRecords.length; i++) {
-      final currentDate = takenRecords[i].takenTime!;
-      final difference = lastTakenDate.difference(currentDate).inDays;
+    // 3. Urutkan dari tanggal terbaru ke terlama
+    final sortedDates = recordsByDate.keys.toList()..sort((a, b) => b.compareTo(a));
+    if (sortedDates.isEmpty) return 0;
 
-      if (difference == 1) {
-        streak++;
-        lastTakenDate = currentDate;
-      } else if (difference > 1) {
-        // Jika jeda lebih dari 1 hari, streak terputus
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final mostRecentDate = sortedDates.first;
+
+    // 4. Syarat Mutlak: Jika catatan terakhir lebih dari kemarin, otomatis streak putus (0)
+    if (today.difference(mostRecentDate).inDays > 1) {
+      return 0;
+    }
+
+    int streak = 0;
+    DateTime expectedDate = mostRecentDate; // Mulai perhitungan mundur dari tanggal terbaru
+
+    // 5. Iterasi Evaluasi Streak Ketat
+    for (var date in sortedDates) {
+      if (date.isAtSameMomentAs(expectedDate)) {
+
+        final dailyRecords = recordsByDate[date]!;
+        bool isDayComplete = true;
+        bool hasTakenAtLeastOne = false;
+
+        // Evaluasi semua jadwal obat dalam satu hari itu
+        for (var record in dailyRecords) {
+          // Hanya evaluasi jadwal yang seharusnya sudah diminum (waktunya sudah lewat/hari ini)
+          if (record.scheduledTime.isBefore(now)) {
+            if (!record.isTaken) {
+              // ADA SATU SAJA OBAT YANG BOLONG!
+              isDayComplete = false;
+              break;
+            } else {
+              hasTakenAtLeastOne = true;
+            }
+          }
+        }
+
+        if (isDayComplete && hasTakenAtLeastOne) {
+          // Hari ini sukses 100% tanpa ada jadwal lewat yang bolong
+          streak++;
+          // Mundur target ke hari sebelumnya
+          expectedDate = expectedDate.subtract(const Duration(days: 1));
+        } else if (!isDayComplete) {
+          // Rantai streak terputus di hari ini
+          break;
+        }
+
+      } else {
+        // Ada hari kalender yang benar-benar tidak ada datanya (terlewat penuh)
         break;
       }
     }
@@ -67,7 +108,3 @@ class MedicationRepository {
     return streak;
   }
 }
-
-final medicationRepoProvider = Provider<MedicationRepository>((ref) {
-  return MedicationRepository(isar);
-});

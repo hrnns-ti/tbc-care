@@ -1,6 +1,5 @@
 import 'package:isar/isar.dart';
 
-// Baris ini wajib ada. File .g.dart akan di-generate otomatis nanti.
 part 'medication_record.g.dart';
 
 @collection
