@@ -15,15 +15,12 @@ import 'features/alarm/alarm_service.dart';
 import 'features/onboarding/registration_view.dart';
 import 'features/dashboard/dashboard_view.dart';
 
-// Variabel global Isar agar bisa diakses di berbagai tempat jika terdesak
-// (Meskipun best practice-nya menggunakan Riverpod Provider)
 late Isar isar;
 
 void main() async {
-  // Pastikan binding Flutter sudah siap sebelum memanggil native code (seperti path_provider)
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Inisialisasi Isar Database (Offline-first)
+  // 1. Inisialisasi Isar Database
   final dir = await getApplicationDocumentsDirectory();
   isar = await Isar.open(
     [
@@ -33,20 +30,37 @@ void main() async {
     directory: dir.path,
   );
 
-  // 2. Inisialisasi Alarm & Notifikasi Native Android
+  // 2. Inisialisasi Alarm & Notifikasi Native
   await AlarmService.init();
 
-  // 3. Smart Routing: Cek apakah profil pasien sudah ada di database lokal
-  final int profileCount = await isar.patientProfiles.count();
-  final bool hasProfile = profileCount > 0;
+  // 3. Smart Routing & SINKRONISASI ALARM
+  final profile = await isar.patientProfiles.where().findFirst();
+  final bool hasProfile = profile != null;
 
-  // 4. Jalankan aplikasi dengan membungkusnya dalam ProviderScope (Riverpod)
+  if (hasProfile) {
+    debugPrint('🔄 Sinkronisasi alarm otomatis dimulai...');
+    final now = DateTime.now();
+
+    // Looping jadwal dari database dan daftarkan ke AlarmService
+    for (int i = 0; i < profile.schedules.length; i++) {
+      final sched = profile.schedules[i];
+      final timeParts = sched.time!.split(':');
+
+      final targetDateTime = DateTime(
+          now.year, now.month, now.day,
+          int.parse(timeParts[0]), int.parse(timeParts[1]),
+          0, 0
+      );
+
+      // Menggunakan ID unik berdasarkan indeks jadwal
+      await AlarmService.scheduleAlarm(targetDateTime, i + 1);
+    }
+    debugPrint('✅ Semua alarm berhasil dijadwalkan ulang.');
+  }
+
   runApp(ProviderScope(child: MyApp(hasProfile: hasProfile)));
 }
 
-// ======================================================================
-// MAIN APP WIDGET
-// ======================================================================
 class MyApp extends StatelessWidget {
   final bool hasProfile;
 
@@ -56,37 +70,25 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'TB Care',
-      debugShowCheckedModeBanner: false, // Menghilangkan banner debug merah agar UI clean
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // Menyesuaikan warna dasar dengan tema Neo-Minimalist biru
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF749BFF),
-          background: const Color(0xFFF3F0FF), // Soft background default
+          background: const Color(0xFFF3F0FF),
         ),
         useMaterial3: true,
       ),
-      // Jika data pasien sudah ada -> Dashboard. Jika kosong -> Registrasi.
       home: hasProfile ? const DashboardView() : const RegistrationView(),
     );
   }
 }
 
-// ======================================================================
 // GLOBAL RIVERPOD PROVIDERS
-// ======================================================================
-
-// 1. Provider untuk memantau data Profil Pasien
 final patientProfileProvider = FutureProvider<PatientProfile?>((ref) async {
-  // Karena ini aplikasi single-user, kita cukup mengambil data pertama
   return await isar.patientProfiles.where().findFirst();
 });
 
-// 2. Provider untuk menghitung Streak (Hari Berturut-turut)
 final streakProvider = FutureProvider<int>((ref) async {
-  // Memastikan MedicationRepository membaca instance Isar yang sudah diinisialisasi
   final repo = ref.watch(medicationRepoProvider);
   return await repo.calculateCurrentStreak();
 });
-
-// Catatan: Pastikan kamu memiliki provider ini di file medication_repository.dart:
-// final medicationRepoProvider = Provider<MedicationRepository>((ref) => MedicationRepository(isar));

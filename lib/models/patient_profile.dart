@@ -27,8 +27,6 @@ class PatientProfile {
   late String puskesmasName;
   late String pmoName;
 
-  late String pin;
-
   late DateTime treatmentStartDate;
   late String regimenCategory;
 

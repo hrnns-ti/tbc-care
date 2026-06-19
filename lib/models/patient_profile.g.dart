@@ -37,39 +37,34 @@ const PatientProfileSchema = CollectionSchema(
       name: r'phoneNumber',
       type: IsarType.string,
     ),
-    r'pin': PropertySchema(
-      id: 4,
-      name: r'pin',
-      type: IsarType.string,
-    ),
     r'pmoName': PropertySchema(
-      id: 5,
+      id: 4,
       name: r'pmoName',
       type: IsarType.string,
     ),
     r'puskesmasName': PropertySchema(
-      id: 6,
+      id: 5,
       name: r'puskesmasName',
       type: IsarType.string,
     ),
     r'regimenCategory': PropertySchema(
-      id: 7,
+      id: 6,
       name: r'regimenCategory',
       type: IsarType.string,
     ),
     r'schedules': PropertySchema(
-      id: 8,
+      id: 7,
       name: r'schedules',
       type: IsarType.objectList,
       target: r'RegimenSchedule',
     ),
     r'totalTreatmentDays': PropertySchema(
-      id: 9,
+      id: 8,
       name: r'totalTreatmentDays',
       type: IsarType.long,
     ),
     r'treatmentStartDate': PropertySchema(
-      id: 10,
+      id: 9,
       name: r'treatmentStartDate',
       type: IsarType.dateTime,
     )
@@ -114,7 +109,6 @@ int _patientProfileEstimateSize(
   bytesCount += 3 + object.fullName.length * 3;
   bytesCount += 3 + object.nik.length * 3;
   bytesCount += 3 + object.phoneNumber.length * 3;
-  bytesCount += 3 + object.pin.length * 3;
   bytesCount += 3 + object.pmoName.length * 3;
   bytesCount += 3 + object.puskesmasName.length * 3;
   bytesCount += 3 + object.regimenCategory.length * 3;
@@ -140,18 +134,17 @@ void _patientProfileSerialize(
   writer.writeString(offsets[1], object.fullName);
   writer.writeString(offsets[2], object.nik);
   writer.writeString(offsets[3], object.phoneNumber);
-  writer.writeString(offsets[4], object.pin);
-  writer.writeString(offsets[5], object.pmoName);
-  writer.writeString(offsets[6], object.puskesmasName);
-  writer.writeString(offsets[7], object.regimenCategory);
+  writer.writeString(offsets[4], object.pmoName);
+  writer.writeString(offsets[5], object.puskesmasName);
+  writer.writeString(offsets[6], object.regimenCategory);
   writer.writeObjectList<RegimenSchedule>(
-    offsets[8],
+    offsets[7],
     allOffsets,
     RegimenScheduleSchema.serialize,
     object.schedules,
   );
-  writer.writeLong(offsets[9], object.totalTreatmentDays);
-  writer.writeDateTime(offsets[10], object.treatmentStartDate);
+  writer.writeLong(offsets[8], object.totalTreatmentDays);
+  writer.writeDateTime(offsets[9], object.treatmentStartDate);
 }
 
 PatientProfile _patientProfileDeserialize(
@@ -166,19 +159,18 @@ PatientProfile _patientProfileDeserialize(
   object.id = id;
   object.nik = reader.readString(offsets[2]);
   object.phoneNumber = reader.readString(offsets[3]);
-  object.pin = reader.readString(offsets[4]);
-  object.pmoName = reader.readString(offsets[5]);
-  object.puskesmasName = reader.readString(offsets[6]);
-  object.regimenCategory = reader.readString(offsets[7]);
+  object.pmoName = reader.readString(offsets[4]);
+  object.puskesmasName = reader.readString(offsets[5]);
+  object.regimenCategory = reader.readString(offsets[6]);
   object.schedules = reader.readObjectList<RegimenSchedule>(
-        offsets[8],
+        offsets[7],
         RegimenScheduleSchema.deserialize,
         allOffsets,
         RegimenSchedule(),
       ) ??
       [];
-  object.totalTreatmentDays = reader.readLong(offsets[9]);
-  object.treatmentStartDate = reader.readDateTime(offsets[10]);
+  object.totalTreatmentDays = reader.readLong(offsets[8]);
+  object.treatmentStartDate = reader.readDateTime(offsets[9]);
   return object;
 }
 
@@ -204,8 +196,6 @@ P _patientProfileDeserializeProp<P>(
     case 6:
       return (reader.readString(offset)) as P;
     case 7:
-      return (reader.readString(offset)) as P;
-    case 8:
       return (reader.readObjectList<RegimenSchedule>(
             offset,
             RegimenScheduleSchema.deserialize,
@@ -213,9 +203,9 @@ P _patientProfileDeserializeProp<P>(
             RegimenSchedule(),
           ) ??
           []) as P;
-    case 9:
+    case 8:
       return (reader.readLong(offset)) as P;
-    case 10:
+    case 9:
       return (reader.readDateTime(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -938,142 +928,6 @@ extension PatientProfileQueryFilter
   }
 
   QueryBuilder<PatientProfile, PatientProfile, QAfterFilterCondition>
-      pinEqualTo(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'pin',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<PatientProfile, PatientProfile, QAfterFilterCondition>
-      pinGreaterThan(
-    String value, {
-    bool include = false,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        include: include,
-        property: r'pin',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<PatientProfile, PatientProfile, QAfterFilterCondition>
-      pinLessThan(
-    String value, {
-    bool include = false,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.lessThan(
-        include: include,
-        property: r'pin',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<PatientProfile, PatientProfile, QAfterFilterCondition>
-      pinBetween(
-    String lower,
-    String upper, {
-    bool includeLower = true,
-    bool includeUpper = true,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.between(
-        property: r'pin',
-        lower: lower,
-        includeLower: includeLower,
-        upper: upper,
-        includeUpper: includeUpper,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<PatientProfile, PatientProfile, QAfterFilterCondition>
-      pinStartsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.startsWith(
-        property: r'pin',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<PatientProfile, PatientProfile, QAfterFilterCondition>
-      pinEndsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.endsWith(
-        property: r'pin',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<PatientProfile, PatientProfile, QAfterFilterCondition>
-      pinContains(String value, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.contains(
-        property: r'pin',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<PatientProfile, PatientProfile, QAfterFilterCondition>
-      pinMatches(String pattern, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.matches(
-        property: r'pin',
-        wildcard: pattern,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<PatientProfile, PatientProfile, QAfterFilterCondition>
-      pinIsEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'pin',
-        value: '',
-      ));
-    });
-  }
-
-  QueryBuilder<PatientProfile, PatientProfile, QAfterFilterCondition>
-      pinIsNotEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        property: r'pin',
-        value: '',
-      ));
-    });
-  }
-
-  QueryBuilder<PatientProfile, PatientProfile, QAfterFilterCondition>
       pmoNameEqualTo(
     String value, {
     bool caseSensitive = true,
@@ -1750,18 +1604,6 @@ extension PatientProfileQuerySortBy
     });
   }
 
-  QueryBuilder<PatientProfile, PatientProfile, QAfterSortBy> sortByPin() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'pin', Sort.asc);
-    });
-  }
-
-  QueryBuilder<PatientProfile, PatientProfile, QAfterSortBy> sortByPinDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'pin', Sort.desc);
-    });
-  }
-
   QueryBuilder<PatientProfile, PatientProfile, QAfterSortBy> sortByPmoName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'pmoName', Sort.asc);
@@ -1898,18 +1740,6 @@ extension PatientProfileQuerySortThenBy
     });
   }
 
-  QueryBuilder<PatientProfile, PatientProfile, QAfterSortBy> thenByPin() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'pin', Sort.asc);
-    });
-  }
-
-  QueryBuilder<PatientProfile, PatientProfile, QAfterSortBy> thenByPinDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'pin', Sort.desc);
-    });
-  }
-
   QueryBuilder<PatientProfile, PatientProfile, QAfterSortBy> thenByPmoName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'pmoName', Sort.asc);
@@ -2010,13 +1840,6 @@ extension PatientProfileQueryWhereDistinct
     });
   }
 
-  QueryBuilder<PatientProfile, PatientProfile, QDistinct> distinctByPin(
-      {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'pin', caseSensitive: caseSensitive);
-    });
-  }
-
   QueryBuilder<PatientProfile, PatientProfile, QDistinct> distinctByPmoName(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -2084,12 +1907,6 @@ extension PatientProfileQueryProperty
   QueryBuilder<PatientProfile, String, QQueryOperations> phoneNumberProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'phoneNumber');
-    });
-  }
-
-  QueryBuilder<PatientProfile, String, QQueryOperations> pinProperty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'pin');
     });
   }
 

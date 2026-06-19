@@ -38,17 +38,20 @@ dependencies:
   # Local Database (Isar)
   isar: ^3.1.0
   isar_flutter_libs: ^3.1.0
-  path_provider: ^2.1.2
+  path_provider: ^2.1.5
   # Notifikasi & Alarm
   flutter_local_notifications: ^17.1.2
   android_alarm_manager_plus: ^4.0.4
   # UI & Media
   fl_chart: ^0.66.0
-  table_calendar: ^3.1.1
+  table_calendar: ^3.2.0
   timezone: ^0.9.4
   flutter_timezone: ^5.1.0
   image_picker: ^1.1.2
   permission_handler: ^11.3.1
+  url_launcher: ^6.3.2
+  flutter_pdfview: ^1.4.4
+  open_filex: ^4.7.0
 
 dev_dependencies:
   flutter_test:
@@ -74,6 +77,10 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/pdf/
+    - assets/images/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

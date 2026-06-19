@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// Sesuaikan path import ini dengan struktur foldermu
 import '../../models/patient_profile.dart';
 import '../../features/alarm/alarm_service.dart';
 import '../../main.dart';
 import '../dashboard/dashboard_view.dart';
 
-// Definisi Palet Warna Baru (Neo-Minimalist)
-const Color primaryBlue = Color(0xFF749BFF);
+// Palet Warna Konsisten Sesuai View Lainnya
+const Color primaryBlue = Color(0xFF4A90E2);
+const Color accentGreen = Color(0xFF5CC8A1);
+const Color accentOrange = Color(0xFFFFA726);
+const Color bgLightBlue = Color(0xFFF5F7FA);
 const Color darkText = Color(0xFF18191E);
 const Color bgWhite = Color(0xFFFFFFFF);
 
@@ -17,20 +20,19 @@ class MedicineInput {
   final TextEditingController dosageController = TextEditingController();
 }
 
-// Helper class untuk mengelola input jadwal
 class ScheduleInput {
   TimeOfDay? time;
   List<MedicineInput> medicines = [MedicineInput()]; // Default 1 obat
 }
 
-class RegistrationView extends StatefulWidget {
+class RegistrationView extends ConsumerStatefulWidget {
   const RegistrationView({super.key});
 
   @override
-  State<RegistrationView> createState() => _RegistrationViewState();
+  ConsumerState<RegistrationView> createState() => _RegistrationViewState();
 }
 
-class _RegistrationViewState extends State<RegistrationView> {
+class _RegistrationViewState extends ConsumerState<RegistrationView> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
@@ -45,13 +47,10 @@ class _RegistrationViewState extends State<RegistrationView> {
   final _pmoController = TextEditingController();
 
   // State Step 3 (Regimen, Durasi & Jadwal Dinamis)
-  DateTime _startDate = DateTime.now();
-  String _regimenCategory = 'Kategori 1';
+  final DateTime _startDate = DateTime.now();
+  String _regimenCategory = 'Fase Intensif';
   final _treatmentDurationDaysController = TextEditingController();
   final List<ScheduleInput> _schedules = [ScheduleInput()];
-
-  // Controller Step 4
-  final _pinController = TextEditingController();
 
   void _nextPage() {
     FocusScope.of(context).unfocus();
@@ -69,7 +68,6 @@ class _RegistrationViewState extends State<RegistrationView> {
     _phoneController.dispose();
     _puskesmasController.dispose();
     _pmoController.dispose();
-    _pinController.dispose();
     _treatmentDurationDaysController.dispose();
 
     // Dispose semua controller di dalam nested list
@@ -85,7 +83,7 @@ class _RegistrationViewState extends State<RegistrationView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F0FF),
+      backgroundColor: bgLightBlue,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -104,18 +102,18 @@ class _RegistrationViewState extends State<RegistrationView> {
       body: SafeArea(
         child: Column(
           children: [
-            // Progress Indicator
+            // Progress Indicator (Sekarang hanya 3 Step)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Row(
-                children: List.generate(4, (index) {
+                children: List.generate(3, (index) {
                   return Expanded(
                     child: Container(
                       margin: const EdgeInsets.only(right: 8.0),
-                      height: 4,
+                      height: 6,
                       decoration: BoxDecoration(
                         color: _currentPage >= index ? primaryBlue : Colors.black12,
-                        borderRadius: BorderRadius.circular(2),
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     ),
                   );
@@ -136,7 +134,6 @@ class _RegistrationViewState extends State<RegistrationView> {
                   _buildPersonalDataStep(),
                   _buildMedicalDataStep(),
                   _buildRegimenDataStep(),
-                  _buildPinSetupStep(),
                 ],
               ),
             ),
@@ -146,9 +143,6 @@ class _RegistrationViewState extends State<RegistrationView> {
     );
   }
 
-  // ==========================================
-  // WIDGET: STEP 1 - DATA PRIBADI
-  // ==========================================
   Widget _buildPersonalDataStep() {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -157,15 +151,21 @@ class _RegistrationViewState extends State<RegistrationView> {
         children: [
           const Text(
             'Mari mulai\nperjalanan Anda.',
-            style: TextStyle(fontSize: 36, height: 1.1, fontWeight: FontWeight.w800, letterSpacing: -1.0, color: darkText),
+            style: TextStyle(fontSize: 32, height: 1.2, fontWeight: FontWeight.w900, color: darkText),
           ),
-          const SizedBox(height: 40),
-          _buildCleanTextField(label: 'NAMA LENGKAP', controller: _nameController, hint: 'Contoh: Budi Santoso'),
-          const SizedBox(height: 24),
-          _buildCleanTextField(label: 'NOMOR INDUK KEPENDUDUKAN', controller: _nikController, hint: '16 digit NIK', keyboardType: TextInputType.number),
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
+          const Text(
+            'Lengkapi data diri Anda untuk membuat profil pengobatan yang akurat.',
+            style: TextStyle(fontSize: 14, color: Colors.black54),
+          ),
+          const SizedBox(height: 32),
+          _buildCleanTextField(label: 'Nama Lengkap', controller: _nameController, hint: 'Contoh: Budi Santoso', icon: Icons.person_outline),
+          const SizedBox(height: 20),
+          _buildCleanTextField(label: 'Nomor Induk Kependudukan', controller: _nikController, hint: '16 digit NIK', keyboardType: TextInputType.number, icon: Icons.badge_outlined),
+          const SizedBox(height: 20),
 
-          const Text('TANGGAL LAHIR', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.5, color: Colors.grey)),
+          const Text('Tanggal Lahir', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: darkText)),
+          const SizedBox(height: 8),
           InkWell(
             onTap: () async {
               final date = await showDatePicker(
@@ -173,34 +173,52 @@ class _RegistrationViewState extends State<RegistrationView> {
                 initialDate: DateTime(1990),
                 firstDate: DateTime(1900),
                 lastDate: DateTime.now(),
+                builder: (context, child) {
+                  return Theme(
+                    data: Theme.of(context).copyWith(
+                      colorScheme: const ColorScheme.light(primary: primaryBlue),
+                    ),
+                    child: child!,
+                  );
+                },
               );
               if (date != null) setState(() => _birthDate = date);
             },
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Colors.black12, width: 2))),
-              child: Text(
-                _birthDate != null ? '${_birthDate!.day}/${_birthDate!.month}/${_birthDate!.year}' : 'Pilih Tanggal Lahir',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: _birthDate != null ? darkText : Colors.black26),
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+              decoration: BoxDecoration(
+                color: bgWhite,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.calendar_today_outlined, color: Colors.grey, size: 20),
+                  const SizedBox(width: 12),
+                  Text(
+                    _birthDate != null ? '${_birthDate!.day}/${_birthDate!.month}/${_birthDate!.year}' : 'Pilih Tanggal Lahir',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: _birthDate != null ? darkText : Colors.grey),
+                  ),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          _buildCleanTextField(label: 'NOMOR HANDPHONE', controller: _phoneController, hint: '0812xxxxxxx', keyboardType: TextInputType.phone),
+          _buildCleanTextField(label: 'Nomor Handphone', controller: _phoneController, hint: '0812xxxxxxx', keyboardType: TextInputType.phone, icon: Icons.phone_android_outlined),
           const SizedBox(height: 48),
 
           SizedBox(
             width: double.infinity,
-            height: 64,
+            height: 56,
             child: ElevatedButton(
               onPressed: _nextPage,
               style: ElevatedButton.styleFrom(
-                backgroundColor: darkText, foregroundColor: Colors.white, elevation: 0,
+                backgroundColor: primaryBlue, foregroundColor: bgWhite, elevation: 0,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
-              child: const Text('Lanjutkan', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              child: const Text('Lanjutkan', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ),
           const SizedBox(height: 32),
@@ -209,9 +227,6 @@ class _RegistrationViewState extends State<RegistrationView> {
     );
   }
 
-  // ==========================================
-  // WIDGET: STEP 2 - DATA MEDIS
-  // ==========================================
   Widget _buildMedicalDataStep() {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -220,23 +235,28 @@ class _RegistrationViewState extends State<RegistrationView> {
         children: [
           const Text(
             'Informasi\nFasilitas Kesehatan.',
-            style: TextStyle(fontSize: 36, height: 1.1, fontWeight: FontWeight.w800, letterSpacing: -1.0, color: darkText),
+            style: TextStyle(fontSize: 32, height: 1.2, fontWeight: FontWeight.w900, color: darkText),
           ),
-          const SizedBox(height: 40),
-          _buildCleanTextField(label: 'NAMA PUSKESMAS / RS', controller: _puskesmasController, hint: 'Contoh: Puskesmas Ciputat'),
-          const SizedBox(height: 24),
-          _buildCleanTextField(label: 'NAMA PMO (PENGAWAS MINUM OBAT)', controller: _pmoController, hint: 'Keluarga / Kader TB'),
+          const SizedBox(height: 12),
+          const Text(
+            'Data faskes pendamping untuk membantu proses pengawasan pengobatan Anda.',
+            style: TextStyle(fontSize: 14, color: Colors.black54),
+          ),
+          const SizedBox(height: 32),
+          _buildCleanTextField(label: 'Nama Puskesmas / RS', controller: _puskesmasController, hint: 'Contoh: Puskesmas Ciputat', icon: Icons.local_hospital_outlined),
+          const SizedBox(height: 20),
+          _buildCleanTextField(label: 'Nama PMO (Pengawas Minum Obat)', controller: _pmoController, hint: 'Keluarga / Kader TB', icon: Icons.assignment_ind_outlined),
           const SizedBox(height: 48),
           SizedBox(
             width: double.infinity,
-            height: 64,
+            height: 56,
             child: ElevatedButton(
               onPressed: _nextPage,
               style: ElevatedButton.styleFrom(
-                backgroundColor: darkText, foregroundColor: Colors.white, elevation: 0,
+                backgroundColor: primaryBlue, foregroundColor: bgWhite, elevation: 0,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
-              child: const Text('Lanjutkan', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              child: const Text('Lanjutkan', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -244,9 +264,6 @@ class _RegistrationViewState extends State<RegistrationView> {
     );
   }
 
-  // ==========================================
-  // WIDGET: STEP 3 - REGIMEN, DURASI & JADWAL
-  // ==========================================
   Widget _buildRegimenDataStep() {
     return Column(
       children: [
@@ -256,50 +273,62 @@ class _RegistrationViewState extends State<RegistrationView> {
             children: [
               const Text(
                 'Atur Jadwal\nPengobatan.',
-                style: TextStyle(fontSize: 36, height: 1.1, fontWeight: FontWeight.w800, letterSpacing: -1.0, color: darkText),
+                style: TextStyle(fontSize: 32, height: 1.2, fontWeight: FontWeight.w900, color: darkText),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 12),
+              const Text(
+                'Sesuaikan waktu alarm minum obat dan jenis obat yang diresepkan dokter.',
+                style: TextStyle(fontSize: 14, color: Colors.black54),
+              ),
+              const SizedBox(height: 32),
 
-              // KATEGORI
-              const Text('KATEGORI REGIMEN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.5, color: Colors.grey)),
-              DropdownButtonFormField<String>(
-                value: _regimenCategory,
-                icon: const Icon(Icons.keyboard_arrow_down, color: darkText),
-                decoration: const InputDecoration(
-                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.black12, width: 2)),
-                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: primaryBlue, width: 2)),
+              // KATEGORI REGIMEN
+              const Text('Kategori Regimen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: darkText)),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                decoration: BoxDecoration(
+                  color: bgWhite,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
                 ),
-                items: ['Kategori 1', 'Kategori 2', 'MDR-TB'].map((String value) {
-                  return DropdownMenuItem<String>(
-                    value: value,
-                    child: Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500)),
-                  );
-                }).toList(),
-                onChanged: (newValue) => setState(() => _regimenCategory = newValue!),
+                child: DropdownButtonFormField<String>(
+                  value: _regimenCategory,
+                  icon: const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
+                  decoration: const InputDecoration(border: InputBorder.none),
+                  items: ['Fase Intensif', 'Fase Lanjutan',].map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: darkText)),
+                    );
+                  }).toList(),
+                  onChanged: (newValue) => setState(() => _regimenCategory = newValue!),
+                ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
               // DURASI PENGOBATAN
               _buildCleanTextField(
-                label: 'TOTAL DURASI PENGOBATAN (HARI)',
+                label: 'Total Durasi Pengobatan (Hari)',
                 controller: _treatmentDurationDaysController,
                 hint: 'Misal: 180',
                 keyboardType: TextInputType.number,
+                icon: Icons.date_range_outlined,
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 32),
 
-              const Text('JADWAL & LIST OBAT', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.5, color: Colors.grey)),
+              const Text('Jadwal & Komposisi Obat', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: darkText)),
               const SizedBox(height: 16),
 
               // RENDER JADWAL DINAMIS
               ...List.generate(_schedules.length, (index) {
                 return Container(
-                  margin: const EdgeInsets.only(bottom: 24),
-                  padding: const EdgeInsets.all(16),
+                  margin: const EdgeInsets.only(bottom: 20),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: bgWhite,
-                    border: Border.all(color: Colors.black12),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 12, offset: const Offset(0, 4))],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -307,10 +336,22 @@ class _RegistrationViewState extends State<RegistrationView> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Jadwal Ke-${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold, color: primaryBlue)),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(color: accentOrange.withOpacity(0.1), shape: BoxShape.circle),
+                                child: const Icon(Icons.alarm, color: accentOrange, size: 16),
+                              ),
+                              const SizedBox(width: 8),
+                              Text('Alarm Ke-${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold, color: darkText)),
+                            ],
+                          ),
                           if (_schedules.length > 1)
                             IconButton(
-                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
                               onPressed: () => setState(() => _schedules.removeAt(index)),
                             )
                         ],
@@ -320,25 +361,37 @@ class _RegistrationViewState extends State<RegistrationView> {
                       // TIME PICKER
                       InkWell(
                         onTap: () async {
-                          final time = await showTimePicker(context: context, initialTime: const TimeOfDay(hour: 7, minute: 0));
+                          final time = await showTimePicker(
+                            context: context,
+                            initialTime: const TimeOfDay(hour: 7, minute: 0),
+                            builder: (context, child) => Theme(
+                              data: Theme.of(context).copyWith(colorScheme: const ColorScheme.light(primary: primaryBlue)),
+                              child: child!,
+                            ),
+                          );
                           if (time != null) setState(() => _schedules[index].time = time);
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                          decoration: BoxDecoration(color: primaryBlue.withOpacity(0.05), borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: bgLightBlue, width: 2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
                                 _schedules[index].time != null ? _schedules[index].time!.format(context) : 'Pilih Waktu',
-                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _schedules[index].time != null ? darkText : Colors.black38),
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _schedules[index].time != null ? primaryBlue : Colors.grey),
                               ),
-                              const Icon(Icons.access_time, color: primaryBlue),
+                              const Icon(Icons.access_time, color: Colors.grey, size: 20),
                             ],
                           ),
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
+                      const Text('Obat yang diminum:', style: TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 12),
 
                       // NESTED LIST: RENDER INPUT OBAT & DOSIS
                       ...List.generate(_schedules[index].medicines.length, (medIndex) {
@@ -348,29 +401,29 @@ class _RegistrationViewState extends State<RegistrationView> {
                           child: Row(
                             children: [
                               Expanded(
-                                flex: 2,
+                                flex: 5,
                                 child: TextField(
                                   controller: medInput.nameController,
                                   decoration: InputDecoration(
                                     labelText: 'Nama Obat',
                                     hintText: 'Misal: Rifampicin',
                                     isDense: true,
-                                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.black12)),
-                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: primaryBlue, width: 2)),
+                                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: bgLightBlue, width: 2)),
+                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: primaryBlue, width: 2)),
                                   ),
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
-                                flex: 1,
+                                flex: 3,
                                 child: TextField(
                                   controller: medInput.dosageController,
                                   decoration: InputDecoration(
                                     labelText: 'Dosis',
-                                    hintText: 'mg/ml',
+                                    hintText: 'mg/tab',
                                     isDense: true,
-                                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.black12)),
-                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: primaryBlue, width: 2)),
+                                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: bgLightBlue, width: 2)),
+                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: primaryBlue, width: 2)),
                                   ),
                                 ),
                               ),
@@ -389,8 +442,8 @@ class _RegistrationViewState extends State<RegistrationView> {
                         alignment: Alignment.centerLeft,
                         child: TextButton.icon(
                           onPressed: () => setState(() => _schedules[index].medicines.add(MedicineInput())),
-                          icon: const Icon(Icons.add_box_outlined, color: Colors.grey, size: 18),
-                          label: const Text('Tambah Obat', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          icon: const Icon(Icons.add_circle_outline_rounded, color: primaryBlue, size: 18),
+                          label: const Text('Tambah Obat', style: TextStyle(color: primaryBlue, fontSize: 13, fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
@@ -399,10 +452,16 @@ class _RegistrationViewState extends State<RegistrationView> {
               }),
 
               // TOMBOL TAMBAH JADWAL BARU
-              TextButton.icon(
+              OutlinedButton.icon(
                 onPressed: () => setState(() => _schedules.add(ScheduleInput())),
-                icon: const Icon(Icons.add, color: primaryBlue),
-                label: const Text('Tambah Waktu Minum Obat', style: TextStyle(color: primaryBlue, fontWeight: FontWeight.bold)),
+                icon: const Icon(Icons.add_alarm_rounded, color: primaryBlue),
+                label: const Text('TAMBAH WAKTU MINUM OBAT'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: primaryBlue,
+                  side: const BorderSide(color: primaryBlue, width: 1.5),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
               ),
               const SizedBox(height: 32),
             ],
@@ -413,15 +472,17 @@ class _RegistrationViewState extends State<RegistrationView> {
           padding: const EdgeInsets.all(24.0),
           child: SizedBox(
             width: double.infinity,
-            height: 64,
+            height: 56,
             child: ElevatedButton(
-              onPressed: _schedules.any((s) => s.time != null) ? _nextPage : null,
+              onPressed: _schedules.any((s) => s.time != null) ? _saveAndFinish : null,
               style: ElevatedButton.styleFrom(
-                backgroundColor: darkText, foregroundColor: Colors.white, elevation: 0,
+                backgroundColor: accentGreen,
+                foregroundColor: bgWhite,
+                elevation: 0,
                 disabledBackgroundColor: Colors.black12,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
-              child: const Text('Lanjutkan', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              child: const Text('Selesai & Simpan Data', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ),
         ),
@@ -429,56 +490,17 @@ class _RegistrationViewState extends State<RegistrationView> {
     );
   }
 
-  // ==========================================
-  // WIDGET: STEP 4 - PIN & SAVE TO ISAR
-  // ==========================================
-  Widget _buildPinSetupStep() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Amankan\nData Anda.',
-            style: TextStyle(fontSize: 36, height: 1.1, fontWeight: FontWeight.w800, letterSpacing: -1.0, color: darkText),
-          ),
-          const SizedBox(height: 40),
-          _buildCleanTextField(
-            label: 'BUAT PIN 6 DIGIT', controller: _pinController, hint: '• • • • • •', keyboardType: TextInputType.number,
-          ),
-          const Spacer(),
-          SizedBox(
-            width: double.infinity,
-            height: 64,
-            child: ElevatedButton(
-              onPressed: _saveAndFinish,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryBlue, foregroundColor: Colors.white, elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              child: const Text('Selesai & Mulai', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
-            ),
-          ),
-          const SizedBox(height: 32),
-        ],
-      ),
-    );
-  }
-
   // Logika Utama Menyimpan ke Database Isar
   Future<void> _saveAndFinish() async {
-    if (_nameController.text.isEmpty || _nikController.text.isEmpty || _phoneController.text.isEmpty || _pinController.text.length < 6 || _birthDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mohon lengkapi semua data pribadi, tanggal lahir, dan PIN 6 digit.')));
-      return;
-    }
-
     if (_nameController.text.isEmpty ||
         _nikController.text.isEmpty ||
         _phoneController.text.isEmpty ||
         _treatmentDurationDaysController.text.isEmpty ||
-        _pinController.text.length < 6 ||
         _birthDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mohon lengkapi semua data, durasi pengobatan, dan PIN 6 digit.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Mohon lengkapi semua data pribadi dan pengobatan.'),
+        backgroundColor: Colors.redAccent,
+      ));
       return;
     }
 
@@ -492,7 +514,6 @@ class _RegistrationViewState extends State<RegistrationView> {
     List<RegimenSchedule> finalSchedules = [];
     for (var scheduleInput in _schedules) {
       if (scheduleInput.time != null) {
-
         List<MedicineDetail> meds = [];
         for (var medInput in scheduleInput.medicines) {
           if (medInput.nameController.text.isNotEmpty) {
@@ -519,7 +540,6 @@ class _RegistrationViewState extends State<RegistrationView> {
       ..phoneNumber = _phoneController.text
       ..puskesmasName = _puskesmasController.text
       ..pmoName = _pmoController.text
-      ..pin = _pinController.text
       ..treatmentStartDate = _startDate
       ..regimenCategory = _regimenCategory
       ..totalTreatmentDays = int.tryParse(_treatmentDurationDaysController.text) ?? 180
@@ -529,6 +549,8 @@ class _RegistrationViewState extends State<RegistrationView> {
       await isar.writeTxn(() async {
         await isar.patientProfiles.put(profile);
       });
+
+      ref.invalidate(patientProfileProvider);
 
       await AlarmService.requestPermission();
       final now = DateTime.now();
@@ -547,7 +569,7 @@ class _RegistrationViewState extends State<RegistrationView> {
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Registrasi Berhasil!')),
+          const SnackBar(content: Text('Registrasi Berhasil!'), backgroundColor: accentGreen),
         );
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const DashboardView()),
@@ -555,27 +577,43 @@ class _RegistrationViewState extends State<RegistrationView> {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal menyimpan data: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal menyimpan data: $e'), backgroundColor: Colors.redAccent)
+        );
       }
     }
   }
 
-  Widget _buildCleanTextField({required String label, required TextEditingController controller, required String hint, TextInputType keyboardType = TextInputType.text}) {
+  Widget _buildCleanTextField({
+    required String label,
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.5, color: Colors.grey)),
-        TextField(
-          controller: controller,
-          keyboardType: keyboardType,
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500, color: darkText),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: const TextStyle(color: Colors.black26),
-            border: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.black12, width: 2)),
-            enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.black12, width: 2)),
-            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: primaryBlue, width: 2)),
-            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: darkText)),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: bgWhite,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
+          ),
+          child: TextField(
+            controller: controller,
+            keyboardType: keyboardType,
+            style: const TextStyle(fontSize: 16, color: darkText),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: const TextStyle(color: Colors.grey, fontSize: 15),
+              prefixIcon: Icon(icon, color: Colors.grey, size: 20),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: primaryBlue, width: 2)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            ),
           ),
         ),
       ],
