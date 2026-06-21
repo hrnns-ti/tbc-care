@@ -53,6 +53,8 @@ dependencies:
   flutter_pdfview: ^1.4.4
   open_filex: ^4.7.0
   alarm: ^5.4.1
+  google_generative_ai: ^0.4.7
+  flutter_dotenv: ^5.2.1
 
 dev_dependencies:
   flutter_test:
@@ -83,6 +85,7 @@ flutter:
     - assets/pdf/
     - assets/images/
     - assets/audio/
+    - .env
 
   # To add assets to your application, add an assets section, like this:
   # assets:

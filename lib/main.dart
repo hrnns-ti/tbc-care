@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 // Import Schema Isar
 import 'models/patient_profile.dart';
@@ -18,8 +19,14 @@ import 'features/dashboard/dashboard_view.dart';
 late Isar isar;
 
 void main() async {
-  // Wajib dipanggil di awal untuk memastikan binding native Flutter siap
   WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await dotenv.load(fileName: ".env");
+    debugPrint('✅ File .env berhasil dimuat.');
+  } catch (e) {
+    debugPrint('⚠️ Gagal memuat file .env: $e. Pastikan file .env ada di root proyek dan terdaftar di pubspec.yaml');
+  }
 
   // 1. Inisialisasi Isar Database
   final dir = await getApplicationDocumentsDirectory();
@@ -42,11 +49,6 @@ void main() async {
     debugPrint('🔄 Sinkronisasi alarm otomatis dimulai...');
     final now = DateTime.now();
 
-    // ======================================================================
-    // 🔥 PERBAIKAN 1: BERSIHKAN ALARM HANTU YANG SUDAH DIHAPUS USER
-    // Batalkan sisa antrean ID lama di Android OS (Batas aman: slot 1-10)
-    // sebelum mendaftarkan susunan jadwal yang paling baru.
-    // ======================================================================
     for (int id = 1; id <= 10; id++) {
       await AlarmService.cancelAlarm(id);
     }
@@ -101,10 +103,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// ======================================================================
-// 🔥 PERBAIKAN 2: SINKRONISASI ARSITEKTUR PROVIDER VIA REPOSITORY
-// Gunakan repo agar seragam dengan state management di halaman lain
-// ======================================================================
 final patientProfileProvider = FutureProvider<PatientProfile?>((ref) async {
   final repo = ref.watch(medicationRepoProvider);
   return await repo.getPatientProfile();

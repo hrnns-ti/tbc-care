@@ -1,10 +1,106 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // <--- IMPORT DOTENV
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:open_filex/open_filex.dart';
-import '../dashboard/dashboard_view.dart'; // Mengambil konstanta warna utama seperti primaryBlue, darkText, bgWhite, dll.
+import 'package:google_generative_ai/google_generative_ai.dart';
+import '../dashboard/dashboard_view.dart'; // Pastikan warna Anda (primaryBlue, darkText, bgWhite, dll) ada di sini
 
+// ======================================================================
+// RIVERPOD PROVIDER UNTUK GEMINI CHAT SESSION
+// ======================================================================
+final geminiChatProvider = StateNotifierProvider<GeminiChatNotifier, List<Map<String, dynamic>>>((ref) {
+  return GeminiChatNotifier();
+});
+
+class GeminiChatNotifier extends StateNotifier<List<Map<String, dynamic>>> {
+  late ChatSession _chatSession;
+  bool _isInitialized = false;
+  bool _isLoading = false;
+
+  bool get isLoading => _isLoading;
+
+  GeminiChatNotifier() : super([]) {
+    _initializeGemini();
+  }
+
+  void _initializeGemini() {
+    // 1. Ambil API Key dari file .env secara aman
+    final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+
+    if (apiKey.isEmpty) {
+      debugPrint("Peringatan: GEMINI_API_KEY tidak ditemukan di file .env!");
+    }
+
+    final model = GenerativeModel(
+      model: 'gemini-2.5-flash-lite', // Model super cepat dan hemat token
+      apiKey: apiKey,
+      systemInstruction: Content.system(
+          "Anda adalah 'Asisten Virtual TBC Care', seorang pakar kesehatan digital, ramah, dan sangat ahli mengenai Tuberkulosis (TBC). "
+              "Tugas utama Anda adalah menjawab pertanyaan pasien mengenai gejala TBC, efek samping obat (seperti urine merah karena Rifampisin), "
+              "panduan nutrisi, pentingnya kepatuhan minum obat, dan memberikan motivasi psikologis agar pasien sembuh total. "
+              "Gunakan bahasa Indonesia yang santun, jelas, menenangkan, dan mudah dipahami oleh orang awam. "
+              "JANGAN MENJAWAB pertanyaan di luar topik kesehatan, medis, atau TBC. Jika ditanya di luar topik, tolak dengan sopan."
+              "JAWAB DENGAN MAKSIMAL 300 KATA ATAU KURANG"
+      ),
+    );
+
+    _chatSession = model.startChat();
+    _isInitialized = true;
+
+    state = [
+      {
+        'isBot': true,
+        'text': 'Halo! Saya Asisten Virtual TBC Care yang didukung oleh AI. Ada keluhan atau pertanyaan seputar pengobatan TBC Anda hari ini? Mari kita diskusikan bersama.',
+      }
+    ];
+  }
+
+  Future<void> sendMessage(String text) async {
+    if (!_isInitialized || text.trim().isEmpty || _isLoading) return;
+
+    final userMessage = {'isBot': false, 'text': text.trim()};
+
+    // Perbaikan: Set loading TRUE dan langsung masukkan pesan user ke UI
+    _isLoading = true;
+    state = [...state, userMessage];
+
+    try {
+      final response = await _chatSession.sendMessage(Content.text(text.trim()));
+
+      if (response.text != null) {
+        state = [
+          ...state,
+          {'isBot': true, 'text': response.text!}
+        ];
+      }
+    } catch (e) {
+      // Perbaikan: Cetak log error asli di terminal untuk mempermudah debugging kamu
+      debugPrint("ERROR GEMINI DETECTED: $e");
+
+      state = [
+        ...state,
+        {
+          'isBot': true,
+          'text': 'Maaf, terjadi kendala saat memproses pesan Anda. Mohon pastikan API Key di .env sudah benar atau periksa koneksi internet Anda. (Error: $e)'
+        }
+      ];
+    } finally {
+      // Perbaikan: Matikan loading dan trigger re-render UI
+      _isLoading = false;
+      state = [...state];
+    }
+  }
+
+  void resetChat() {
+    _initializeGemini();
+  }
+}
+
+// ======================================================================
+// VIEW UTAMA: PUSAT EDUKASI
+// ======================================================================
 class EducationView extends StatefulWidget {
   const EducationView({super.key});
 
@@ -16,7 +112,6 @@ class _EducationViewState extends State<EducationView> {
   final PageController _carouselController = PageController(viewportFraction: 0.85);
   String _selectedCategory = 'Semua';
 
-  // Data Edukasi Lokal (Offline-first)
   final List<Map<String, dynamic>> _educationData = [
     {
       'id': 'pdf_1',
@@ -55,32 +150,22 @@ class _EducationViewState extends State<EducationView> {
       'color': const Color(0xFFF0FDF4),
       'iconColor': Colors.green,
       'icon': Icons.article_rounded,
-      'assetPath': '', // Artikel murni teks offline
+      'assetPath': '',
     },
   ];
 
-  Future<void> _launchWhatsApp() async {
-    const phoneNumber = '6282116864170';
-    const message = 'Halo Admin TBC Care, saya membutuhkan informasi lebih lanjut mengenai program pengobatan terapi saya.';
-
-    // Menggunakan skema whatsapp:// send lebih agresif memanggil aplikasi native
-    final nativeUrl = Uri.parse('whatsapp://send?phone=$phoneNumber&text=${Uri.encodeComponent(message)}');
-    final webUrl = Uri.parse('https://wa.me/$phoneNumber?text=${Uri.encodeComponent(message)}');
-
-    try {
-      // Langsung coba buka aplikasi WhatsApp native di HP
-      await launchUrl(nativeUrl, mode: LaunchMode.externalApplication);
-    } catch (e) {
-      // Jika gagal/tidak ada WA native, lempar ke browser web agar tidak freeze
-      await launchUrl(webUrl, mode: LaunchMode.externalApplication);
-    }
+  void _openTbcChatbot() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const TbcGeminiChatbotView(),
+      ),
+    );
   }
 
-  // Aksi penanganan buka dokumen nyata setelah lolos dari pop-up preview
   void _handleOpenContent(Map<String, dynamic> item) async {
-    Navigator.of(context, rootNavigator: true).pop(); // Tutup dialog preview terlebih dahulu
+    Navigator.of(context, rootNavigator: true).pop();
 
-    // 1. JIKA KONTEN ADALAH GAMBAR / LEAFLET (Buka di internal dengan Zoom)
     if (item['type'] == 'Gambar') {
       Navigator.push(
         context,
@@ -95,24 +180,13 @@ class _EducationViewState extends State<EducationView> {
             body: Center(
               child: InteractiveViewer(
                 maxScale: 4.0,
-                child: Image.asset(
-                  item['assetPath'],
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Center(
-                      child: Text('Gagal memuat gambar offline.\nPastikan file ada di assets/images/',
-                          textAlign: TextAlign.center, style: TextStyle(color: Colors.white70)),
-                    );
-                  },
-                ),
+                child: Image.asset(item['assetPath'], fit: BoxFit.contain),
               ),
             ),
           ),
         ),
       );
-    }
-    // 2. JIKA KONTEN ADALAH ARTIKEL TEKS (Buka di internal sebagai Widget teks biasa)
-    else if (item['type'] == 'Artikel') {
+    } else if (item['type'] == 'Artikel') {
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -125,72 +199,38 @@ class _EducationViewState extends State<EducationView> {
             body: ListView(
               padding: const EdgeInsets.all(24),
               children: [
-                Text(item['subtitle'].toUpperCase(), style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.5)),
+                Text(item['subtitle'].toUpperCase(), style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 11)),
                 const SizedBox(height: 6),
                 Text(item['title'], style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: darkText)),
                 const Divider(height: 32, color: Colors.black12),
-                Text(
-                  '${item['description']}\n\n'
-                      'Asupan nutrisi yang optimal memegang peranan vital dalam proses regenerasi makrofag dan pemulihan jaringan parenkim paru yang terdampak bakteri Mycobacterium tuberculosis.\n\n'
-                      'Pasien sangat dianjurkan mengonsumsi asupan tinggi protein seperti putih telur, ikan, atau dada ayam guna mencegah penyusutan massa otot (wasting) akibat efek kronis infeksi TBC. '
-                      'Sinergi diet sehat dan kepatuhan minum obat secara teratur adalah kunci mutlak menuju kesembuhan total.',
-                  style: const TextStyle(fontSize: 15, height: 1.6, color: darkText),
-                  textAlign: TextAlign.justify,
-                ),
+                Text('${item['description']}\n\nNutrisi seimbang mempercepat penyembuhan jaringan paru akibat infeksi bakteri TBC...', style: const TextStyle(fontSize: 15, height: 1.6, color: darkText)),
               ],
             ),
           ),
         ),
       );
-    }
-    // 3. JIKA KONTEN ADALAH PDF BOOKLET (SOLUSI: Dilempar Instan ke Aplikasi Luar HP)
-    else if (item['type'] == 'PDF') {
-      // Tampilkan dialog loading melingkar kecil di layar
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
-      );
-
+    } else if (item['type'] == 'PDF') {
+      showDialog(context: context, barrierDismissible: false, builder: (context) => const Center(child: CircularProgressIndicator()));
       try {
         final tempDir = await getTemporaryDirectory();
         final path = '${tempDir.path}/Buku_Saku_Pasien_TB.pdf';
         final file = File(path);
-
-        // Hanya salin byte dari aset apabila file fisik belum pernah dibuat sebelumnya di HP
         if (!await file.exists()) {
           final bd = await DefaultAssetBundle.of(context).load(item['assetPath']);
           final bytes = bd.buffer.asUint8List();
           await file.writeAsBytes(bytes, flush: true);
         }
-
-        // Tutup dialog loading secara aman
         if (mounted) Navigator.pop(context);
-
-        // Buka file PDF menggunakan aplikasi PDF Reader internal HP user
-        final result = await OpenFilex.open(path);
-
-        if (result.type != ResultType.done && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Tidak ditemukan aplikasi pendukung untuk membuka PDF: ${result.message}')),
-          );
-        }
+        await OpenFilex.open(path);
       } catch (e) {
-        if (mounted) Navigator.pop(context); // Tutup loading jika terjadi error skrip
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Gagal memproses data file: $e')),
-          );
-        }
+        if (mounted) Navigator.pop(context);
       }
     }
   }
 
-  // Dialog Preview Konten Interaktif
   void _openContentPreview(BuildContext context, Map<String, dynamic> item) {
     showDialog(
       context: context,
-      barrierDismissible: true,
       builder: (BuildContext dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         contentPadding: EdgeInsets.zero,
@@ -198,56 +238,30 @@ class _EducationViewState extends State<EducationView> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header Card Dialog
             Container(
               padding: const EdgeInsets.all(20),
               color: item['iconColor'].withOpacity(0.1),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    backgroundColor: item['iconColor'],
-                    foregroundColor: Colors.white,
-                    radius: 18,
-                    child: Icon(item['icon'], size: 18),
-                  ),
+                  CircleAvatar(backgroundColor: item['iconColor'], foregroundColor: Colors.white, radius: 18, child: Icon(item['icon'], size: 18)),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(item['type'], style: TextStyle(color: item['iconColor'], fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.5)),
-                        Text(item['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: darkText), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      ],
+                    child: Text(
+                      item['title'],
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: darkText),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   )
                 ],
               ),
             ),
-
-            // Deskripsi Singkat Abstraksi Aset
             Padding(
               padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  Text(item['description'], style: const TextStyle(fontSize: 13, color: Colors.black54, height: 1.5), textAlign: TextAlign.justify),
-                  const SizedBox(height: 20),
-
-                  // Tombol Utama Eksekusi Pembacaan Offline
-                  SizedBox(
-                    width: double.infinity,
-                    height: 46,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: item['iconColor'],
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
-                      ),
-                      onPressed: () => _handleOpenContent(item),
-                      child: Text('BUKA ${item['type'].toUpperCase()} SEKARANG', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                    ),
-                  )
-                ],
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: item['iconColor'], foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                onPressed: () => _handleOpenContent(item),
+                child: Text('BUKA ${item['type'].toUpperCase()} SEKARANG'),
               ),
             )
           ],
@@ -258,16 +272,13 @@ class _EducationViewState extends State<EducationView> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredData = _selectedCategory == 'Semua'
-        ? _educationData
-        : _educationData.where((element) => element['type'] == _selectedCategory).toList();
+    final filteredData = _selectedCategory == 'Semua' ? _educationData : _educationData.where((element) => element['type'] == _selectedCategory).toList();
 
     return Scaffold(
       backgroundColor: bgLightBlue,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. HEADER UTAMA
           Container(
             width: double.infinity,
             color: primaryBlue,
@@ -281,8 +292,6 @@ class _EducationViewState extends State<EducationView> {
               ],
             ),
           ),
-
-          // 2. FILTER STRIP INTERAKTIF
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
             child: Row(
@@ -304,12 +313,8 @@ class _EducationViewState extends State<EducationView> {
               }).toList(),
             ),
           ),
-
-          // 3. INTERACTIVE CAROUSEL SWIPE PREVIEW
           Expanded(
-            child: filteredData.isEmpty
-                ? const Center(child: Text('Konten belum tersedia'))
-                : PageView.builder(
+            child: PageView.builder(
               controller: _carouselController,
               itemCount: filteredData.length,
               itemBuilder: (context, index) {
@@ -318,16 +323,9 @@ class _EducationViewState extends State<EducationView> {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
                   child: Card(
                     color: bgWhite,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28),
-                      side: BorderSide(color: Colors.black.withOpacity(0.03)),
-                    ),
-                    clipBehavior: Clip.antiAlias,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
                     child: InkWell(
-                      onTap: () {
-                        _openContentPreview(context, item);
-                      },
+                      onTap: () => _openContentPreview(context, item),
                       child: Padding(
                         padding: const EdgeInsets.all(24),
                         child: Column(
@@ -336,28 +334,16 @@ class _EducationViewState extends State<EducationView> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(color: item['color'], borderRadius: BorderRadius.circular(12)),
-                                  child: Text(item['tag'], style: TextStyle(color: item['iconColor'], fontSize: 11, fontWeight: FontWeight.bold)),
-                                ),
+                                Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: item['color'], borderRadius: BorderRadius.circular(12)), child: Text(item['tag'], style: TextStyle(color: item['iconColor'], fontSize: 11, fontWeight: FontWeight.bold))),
                                 Icon(item['icon'], color: item['iconColor'].withOpacity(0.7), size: 28),
                               ],
                             ),
                             const Spacer(),
-                            Text(item['subtitle'].toUpperCase(), style: const TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1)),
-                            const SizedBox(height: 6),
-                            Text(item['title'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: darkText, height: 1.3)),
-                            const SizedBox(height: 10),
-                            Text(item['description'], maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.black54, fontSize: 13, height: 1.45)),
+                            Text(item['title'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: darkText)),
+                            const SizedBox(height: 8),
+                            Text(item['description'], maxLines: 3, style: const TextStyle(color: Colors.black54, fontSize: 13)),
                             const Spacer(),
-                            Row(
-                              children: [
-                                Text('Ketuk untuk Preview', style: TextStyle(color: item['iconColor'], fontSize: 12, fontWeight: FontWeight.bold)),
-                                const SizedBox(width: 4),
-                                Icon(Icons.arrow_forward_rounded, color: item['iconColor'], size: 14),
-                              ],
-                            ),
+                            Text('Ketuk untuk Preview', style: TextStyle(color: item['iconColor'], fontSize: 12, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
@@ -367,50 +353,191 @@ class _EducationViewState extends State<EducationView> {
               },
             ),
           ),
-
-          // 4. TOMBOL PANGGILAN WHATSAPP PMO / OPERATOR
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
             child: Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0FDF4),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.green.withOpacity(0.2)),
-              ),
+              decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(20), border: Border.all(color: primaryBlue.withOpacity(0.2))),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
-                    child: const Icon(Icons.chat_bubble_rounded, color: bgWhite, size: 20),
-                  ),
+                  Container(padding: const EdgeInsets.all(10), decoration: const BoxDecoration(color: primaryBlue, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: bgWhite, size: 20)),
                   const SizedBox(width: 14),
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Butuh Bantuan Klinis?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: darkText)),
-                        Text('Hubungi langsung Operator/PMO via WhatsApp', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                        Text('AI Konsultan TBC Care', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: darkText)),
+                        Text('Diskusi keluhan medis & efek obat pintar via Gemini AI', style: TextStyle(fontSize: 11, color: Colors.black54)),
                       ],
                     ),
                   ),
                   ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: bgWhite,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: _launchWhatsApp,
-                    child: const Text('TANYA', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    style: ElevatedButton.styleFrom(backgroundColor: primaryBlue, foregroundColor: bgWhite, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                    onPressed: _openTbcChatbot,
+                    child: const Text('TANYA AI', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                   )
                 ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ======================================================================
+// WIDGET INTERFAS CHAT HALAMAN CHATBOT GEMINI AI
+// ======================================================================
+class TbcGeminiChatbotView extends ConsumerStatefulWidget {
+  const TbcGeminiChatbotView({super.key});
+
+  @override
+  ConsumerState<TbcGeminiChatbotView> createState() => _TbcGeminiChatbotViewState();
+}
+
+class _TbcGeminiChatbotViewState extends ConsumerState<TbcGeminiChatbotView> {
+  final TextEditingController _inputController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+
+  void _sendChatMessage() {
+    final text = _inputController.text;
+    if (text.trim().isEmpty) return;
+
+    _inputController.clear();
+    ref.read(geminiChatProvider.notifier).sendMessage(text).then((_) => _scrollToBottom());
+  }
+
+  void _scrollToBottom() {
+    Future.delayed(const Duration(milliseconds: 150), () {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final messages = ref.watch(geminiChatProvider);
+    final chatNotifier = ref.watch(geminiChatProvider.notifier); // Pantau notifier-nya langsung
+
+    return Scaffold(
+      backgroundColor: bgLightBlue,
+      resizeToAvoidBottomInset: true,
+      appBar: AppBar(
+        title: const Row(
+          children: [
+            Icon(Icons.auto_awesome_rounded, color: bgWhite, size: 20),
+            SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Asisten Pintar TBC', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: bgWhite)),
+                Text('Didukung oleh Gemini AI', style: TextStyle(fontSize: 11, color: Colors.white70)),
+              ],
+            )
+          ],
+        ),
+        backgroundColor: primaryBlue,
+        iconTheme: const IconThemeData(color: bgWhite),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: bgWhite),
+            onPressed: () => ref.read(geminiChatProvider.notifier).resetChat(),
+            tooltip: 'Reset Sesi Chat',
+          )
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.all(16),
+                itemCount: messages.length,
+                itemBuilder: (context, index) {
+                  final msg = messages[index];
+                  final isBot = msg['isBot'] as bool;
+
+                  return Align(
+                    alignment: isBot ? Alignment.centerLeft : Alignment.centerRight,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
+                      decoration: BoxDecoration(
+                        color: isBot ? bgWhite : primaryBlue,
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(16),
+                          topRight: const Radius.circular(16),
+                          bottomLeft: Radius.circular(isBot ? 4 : 16),
+                          bottomRight: Radius.circular(isBot ? 16 : 4),
+                        ),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 4, offset: const Offset(0, 2))],
+                      ),
+                      child: Text(
+                        msg['text'],
+                        style: TextStyle(color: isBot ? darkText : bgWhite, fontSize: 14, height: 1.4),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // Perbaikan Indikator Loading: Sekarang menggunakan state boolean dari notifier
+            if (chatNotifier.isLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: primaryBlue)),
+                    SizedBox(width: 10),
+                    Text('Asisten sedang mengetik...', style: TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic)),
+                  ],
+                ),
+              ),
+
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: bgWhite,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _inputController,
+                      decoration: InputDecoration(
+                        hintText: 'Tanyakan keluhan atau info obat TBC...',
+                        hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide(color: Colors.grey.shade300)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: const BorderSide(color: primaryBlue)),
+                      ),
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _sendChatMessage(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  CircleAvatar(
+                    backgroundColor: primaryBlue,
+                    radius: 20,
+                    child: IconButton(
+                      icon: const Icon(Icons.send_rounded, color: bgWhite, size: 18),
+                      onPressed: _sendChatMessage,
+                    ),
+                  )
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

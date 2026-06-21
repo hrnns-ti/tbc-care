@@ -147,6 +147,19 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
           final safeDaysPassed = daysPassed > 0 ? daysPassed : 1;
           final progressRatio = (safeDaysPassed / profile.totalTreatmentDays).clamp(0.0, 1.0);
 
+          String getGreeting() {
+            final hour = DateTime.now().hour;
+            if (hour >= 4 && hour < 11) {
+              return 'Selamat Pagi';
+            } else if (hour >= 11 && hour < 15) {
+              return 'Selamat Siang';
+            } else if (hour >= 15 && hour < 18) {
+              return 'Selamat Sore';
+            } else {
+              return 'Selamat Malam';
+            }
+          }
+
           return Column(
             children: [
               Expanded(
@@ -166,7 +179,6 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // BAGIAN NOTIFIKASI DAN GARIS TIGA TELAH DIHAPUS UTUH DI SINI
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -175,7 +187,7 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Selamat Pagi,\n${profile.fullName.split(' ').first} 👋',
+                                        '${getGreeting()},\n${profile.fullName.split(' ').first} 👋', // <-- Menggunakan getGreeting()
                                         style: const TextStyle(
                                           fontSize: 28,
                                           fontWeight: FontWeight.bold,
@@ -394,57 +406,91 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                             final nextDaySchedule = profile.schedules.first;
                             final nextDayMedications = nextDaySchedule.medicines.map((m) => m.name ?? 'Obat').join(', ');
 
-                            return Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: bgWhite,
-                                borderRadius: BorderRadius.circular(24),
-                                boxShadow: [
-                                  BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 12, offset: const Offset(0, 4))
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Jadwal Berikutnya',
-                                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: darkText),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.wb_sunny_rounded, color: accentOrange, size: 28),
-                                      const SizedBox(width: 14),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Text(
-                                                  '${nextDaySchedule.time?.replaceAll(':', '.') ?? '07.00'}',
-                                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: darkText),
-                                                ),
-                                                const Text(
-                                                  '  •  Obat Pagi Besok',
-                                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: darkText),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              nextDayMedications.isNotEmpty ? nextDayMedications : 'Rifampisin, Isoniazid, ...',
-                                              style: const TextStyle(fontSize: 13, color: Colors.grey),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ],
+                            String timeLabel = 'Jadwal Besok';
+                            IconData scheduleIcon = Icons.access_time_filled_rounded;
+                            Color iconColor = primaryBlue;
+
+                            if (nextDaySchedule.time != null) {
+                              final hour = int.tryParse(nextDaySchedule.time!.split(':')[0]) ?? 0;
+                              if (hour >= 4 && hour < 11) {
+                                timeLabel = 'Obat Pagi Besok';
+                                scheduleIcon = Icons.wb_sunny_rounded;
+                                iconColor = accentOrange;
+                              } else if (hour >= 11 && hour < 15) {
+                                timeLabel = 'Obat Siang Besok';
+                                scheduleIcon = Icons.wb_sunny_rounded;
+                                iconColor = accentOrange;
+                              } else if (hour >= 15 && hour < 18) {
+                                timeLabel = 'Obat Sore Besok';
+                                scheduleIcon = Icons.wb_twilight;
+                                iconColor = accentOrange;
+                              } else {
+                                timeLabel = 'Obat Malam Besok';
+                                scheduleIcon = Icons.nightlight_round;
+                                iconColor = const Color(0xFF7986CB); // Warna indigo lembut untuk malam
+                              }
+                            }
+
+                            return InkWell(
+                              onTap: () {
+                                Navigator.push(context, MaterialPageRoute(builder: (context) => const ScheduleView()));
+                              },
+                              borderRadius: BorderRadius.circular(24),
+                              child: Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: bgWhite,
+                                  borderRadius: BorderRadius.circular(24),
+                                  boxShadow: [
+                                    BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 12, offset: const Offset(0, 4))
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Jadwal Berikutnya',
+                                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: darkText),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Row(
+                                      children: [
+                                        // Ikon sudah dinamis mengikuti waktu obat
+                                        Icon(scheduleIcon, color: iconColor, size: 28),
+                                        const SizedBox(width: 14),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Text(
+                                                    '${nextDaySchedule.time?.replaceAll(':', '.') ?? '07.00'}',
+                                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: darkText),
+                                                  ),
+                                                  // Label sudah dinamis (Pagi/Siang/Malam)
+                                                  Text(
+                                                    '  •  $timeLabel',
+                                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: darkText),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 4),
+                                              // Nama obat sudah dinamis 100% tanpa hardcode teks cadangan lagi
+                                              Text(
+                                                nextDayMedications.isNotEmpty ? nextDayMedications : 'Tidak ada detail obat',
+                                                style: const TextStyle(fontSize: 13, color: Colors.grey),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                      const Icon(Icons.chevron_right, color: Colors.grey, size: 22),
-                                    ],
-                                  ),
-                                ],
+                                        const Icon(Icons.chevron_right, color: Colors.grey, size: 22),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
                             );
                           },
@@ -700,6 +746,7 @@ class _MedicineScheduleCardState extends ConsumerState<MedicineScheduleCard> {
 
           // 1. Batalkan alarm hari ini yang barusan dikonfirmasi/diminum
           await AlarmService.cancelAlarm(alarmId);
+          await Future.delayed(const Duration(milliseconds: 500));
 
           // 2. Jadwalkan ulang alarm yang sama PERSIS untuk ESOK HARI
           final tomorrowScheduledTime = DateTime(
