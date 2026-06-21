@@ -9,7 +9,7 @@ import '../../models/medication_record.dart';
 import '../../core/database/medication_repository.dart';
 import '../dashboard/dashboard_view.dart'; // Mengambil konstanta warna utama
 import '../history/schedule_view.dart';  // Mengambil provider allRecordsProvider
-import 'edit_schedule_view.dart';
+import 'edit_schedule_view.dart' hide bgLightBlue, primaryBlue, bgWhite, accentGreen, darkText;
 
 class ProfileView extends ConsumerWidget {
   const ProfileView({super.key});
@@ -53,7 +53,7 @@ class ProfileView extends ConsumerWidget {
               if (context.mounted) {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Durasi masa pengobatan berhasil diperbarui!'), backgroundColor: accentGreen),
+                  SnackBar(content: const Text('Durasi masa pengobatan berhasil diperbarui!'), backgroundColor: accentGreen),
                 );
               }
             },
@@ -66,7 +66,7 @@ class ProfileView extends ConsumerWidget {
 
   // Fungsi untuk menampilkan pilihan Regimen Klinis secara dinamis
   void _showRegimenSelectionBottomSheet(BuildContext context, WidgetRef ref, PatientProfile profile) {
-    final categories = ['Kategori 1', 'Kategori 2', 'MDR-TB'];
+    final categories = ['Fase Intensif', 'Fase Lanjutan'];
 
     showModalBottomSheet(
       context: context,
@@ -80,7 +80,7 @@ class ProfileView extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Penyesuaian Regimen Klinis',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: darkText),
               ),
@@ -247,7 +247,7 @@ class ProfileView extends ConsumerWidget {
                                     decoration: BoxDecoration(color: bgWhite.withOpacity(0.2), borderRadius: BorderRadius.circular(6)),
                                     child: Text(
                                       profile.regimenCategory,
-                                      style: const TextStyle(color: bgWhite, fontSize: 11, fontWeight: FontWeight.bold),
+                                      style: TextStyle(color: bgWhite, fontSize: 11, fontWeight: FontWeight.bold),
                                     ),
                                   )
                                 ],

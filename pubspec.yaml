@@ -52,6 +52,7 @@ dependencies:
   url_launcher: ^6.3.2
   flutter_pdfview: ^1.4.4
   open_filex: ^4.7.0
+  alarm: ^5.4.1
 
 dev_dependencies:
   flutter_test:
@@ -81,6 +82,7 @@ flutter:
   assets:
     - assets/pdf/
     - assets/images/
+    - assets/audio/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

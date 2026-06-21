@@ -44,6 +44,16 @@ class DashboardView extends ConsumerStatefulWidget {
 class _DashboardViewState extends ConsumerState<DashboardView> {
   int _currentIndex = 0; // Mengontrol navigasi bottom bar aktif
 
+  @override
+  void initState() {
+    super.initState(); {
+      // Dipanggil setelah frame pertama selesai dirender agar aman bagi konteks navigasi
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        AlarmService.checkAndRequestBatteryOptimization(context);
+      });
+    }
+  }
+
   String _calculateTimeRemaining(String? targetTimeStr) {
     if (targetTimeStr == null || targetTimeStr.isEmpty) return '-';
     try {

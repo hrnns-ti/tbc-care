@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/database/medication_repository.dart';
 import '../../main.dart';
 import '../../models/patient_profile.dart';
+import '../alarm/alarm_service.dart';
 import '../dashboard/dashboard_view.dart'; // Mengambil konstanta warna
 
 class EditScheduleView extends ConsumerStatefulWidget {
@@ -79,15 +80,6 @@ class _EditScheduleViewState extends ConsumerState<EditScheduleView> {
   void _manageMedicinesBottomSheet(int scheduleIndex) {
     final schedule = _tempSchedules[scheduleIndex];
 
-    // Siapkan list controller lokal untuk melacak input teks form
-    List<TextEditingController> nameControllers = [];
-    List<TextEditingController> dosageControllers = [];
-
-    for (var med in schedule.medicines) {
-      nameControllers.add(TextEditingController(text: med.name));
-      dosageControllers.add(TextEditingController(text: med.dosage));
-    }
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true, // Agar form naik saat keyboard muncul
@@ -95,124 +87,12 @@ class _EditScheduleViewState extends ConsumerState<EditScheduleView> {
         borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
       ),
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Komposisi Jam ${schedule.time?.replaceAll(':', '.') ?? '00.00'}',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: darkText),
-                      ),
-                        TextButton.icon(
-                        onPressed: () {
-                          setModalState(() {
-                            nameControllers.add(TextEditingController());
-                            dosageControllers.add(TextEditingController());
-                            schedule.medicines.add(MedicineDetail()..name = ''..dosage = '');
-                          });
-                        },
-                        icon: const Icon(Icons.add_circle_outline_rounded, color: primaryBlue, size: 20),
-                        label: const Text(
-                          'Obat',
-                          style: TextStyle(color: primaryBlue, fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-
-                  ConstrainedBox(
-                    constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: schedule.medicines.length,
-                      itemBuilder: (context, medIndex) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 5,
-                                child: TextField(
-                                  controller: nameControllers[medIndex],
-                                  decoration: InputDecoration(
-                                    labelText: 'Nama Obat',
-                                    isDense: true,
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                flex: 4,
-                                child: TextField(
-                                  controller: dosageControllers[medIndex],
-                                  decoration: InputDecoration(
-                                    labelText: 'Dosis',
-                                    hintText: 'Misal: 1 tab',
-                                    isDense: true,
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                                  ),
-                                ),
-                              ),
-                              if (schedule.medicines.length > 1)
-                                IconButton(
-                                  icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent),
-                                  onPressed: () {
-                                    setModalState(() {
-                                      nameControllers.removeAt(medIndex);
-                                      dosageControllers.removeAt(medIndex);
-                                      schedule.medicines.removeAt(medIndex);
-                                    });
-                                  },
-                                ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: darkText,
-                        foregroundColor: bgWhite,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      onPressed: () {
-                        // Salinkan semua input teks kembali ke state penampung utama
-                        setState(() {
-                          for (int i = 0; i < schedule.medicines.length; i++) {
-                            schedule.medicines[i].name = nameControllers[i].text.trim();
-                            schedule.medicines[i].dosage = dosageControllers[i].text.trim();
-                          }
-                          // Bersihkan obat yang tidak sengaja terisi string kosong seluruhnya
-                          schedule.medicines.removeWhere((m) => (m.name == null || m.name!.isEmpty));
-
-                          // Jika obat kosong, berikan placeholder default agar tidak error di dashboard
-                          if (schedule.medicines.isEmpty) {
-                            schedule.medicines.add(MedicineDetail()..name = 'Obat OAT'..dosage = '1 Tab');
-                          }
-                        });
-                        Navigator.pop(context);
-                      },
-                      child: const Text('OK, Terapkan Komposisi', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                  )
-                ],
-              ),
-            );
+        return _MedicineFormBottomSheet(
+          schedule: schedule,
+          onApply: (updatedMedicines) {
+            setState(() {
+              schedule.medicines = updatedMedicines;
+            });
           },
         );
       },
@@ -229,7 +109,34 @@ class _EditScheduleViewState extends ConsumerState<EditScheduleView> {
     final updatedProfile = widget.profile..schedules = _tempSchedules;
     final repo = ref.read(medicationRepoProvider);
 
+    // 1. Simpan perubahan ke dalam Isar Database local
     await repo.updatePatientProfile(updatedProfile);
+
+    // 2. Bersihkan slot alarm lama di sistem Android OS terlebih dahulu untuk menghindari penumpukan ID
+    for (int id = 1; id <= 10; id++) {
+      await AlarmService.cancelAlarm(id);
+    }
+
+    // 3. Daftarkan ulang jadwal alarm baru ke sistem Android OS
+    final now = DateTime.now();
+    for (int i = 0; i < updatedProfile.schedules.length; i++) {
+      final sched = updatedProfile.schedules[i];
+      if (sched.time != null) {
+        final timeParts = sched.time!.split(':');
+        final targetDateTime = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          int.parse(timeParts[0]),
+          int.parse(timeParts[1]),
+          0,
+          0,
+        );
+
+        // Mendaftarkan kembali menggunakan ID yang konsisten berbasis urutan index (1, 2, 3...)
+        await AlarmService.scheduleAlarm(targetDateTime, i + 1);
+      }
+    }
 
     // Refresh provider agar dashboard dan view history langsung ter-update otomatis
     ref.invalidate(patientProfileProvider);
@@ -237,7 +144,7 @@ class _EditScheduleViewState extends ConsumerState<EditScheduleView> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Jadwal & Komposisi Obat berhasil diperbarui!'),
+          content: Text('Jadwal & Alarm berhasil diperbarui!'),
           backgroundColor: Colors.green,
         ),
       );
@@ -318,7 +225,6 @@ class _EditScheduleViewState extends ConsumerState<EditScheduleView> {
               },
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.all(20),
             child: Row(
@@ -350,6 +256,170 @@ class _EditScheduleViewState extends ConsumerState<EditScheduleView> {
                   ),
                 ),
               ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+// ======================================================================
+// WIDGET KHUSUS KOMPOSISI OBAT UNTUK MENANGANI LIFECYCLE CONTROLLER
+// ======================================================================
+class _MedicineFormBottomSheet extends StatefulWidget {
+  final RegimenSchedule schedule;
+  final Function(List<MedicineDetail>) onApply;
+
+  const _MedicineFormBottomSheet({required this.schedule, required this.onApply});
+
+  @override
+  State<_MedicineFormBottomSheet> createState() => _MedicineFormBottomSheetState();
+}
+
+class _MedicineFormBottomSheetState extends State<_MedicineFormBottomSheet> {
+  final List<TextEditingController> _nameControllers = [];
+  final List<TextEditingController> _dosageControllers = [];
+  final List<MedicineDetail> _localMedicines = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // Salin data ke local list agar perubahan tidak langsung merusak data sebelum klik OK
+    for (var med in widget.schedule.medicines) {
+      _localMedicines.add(MedicineDetail()..name = med.name..dosage = med.dosage);
+      _nameControllers.add(TextEditingController(text: med.name));
+      _dosageControllers.add(TextEditingController(text: med.dosage));
+    }
+  }
+
+  @override
+  void dispose() {
+    // Di sinilah tempat paling aman untuk membuang controller tanpa mengganggu render tree
+    for (var c in _nameControllers) {
+      c.dispose();
+    }
+    for (var c in _dosageControllers) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Komposisi Jam ${widget.schedule.time?.replaceAll(':', '.') ?? '00.00'}',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: darkText),
+              ),
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _nameControllers.add(TextEditingController());
+                    _dosageControllers.add(TextEditingController());
+                    _localMedicines.add(MedicineDetail()..name = ''..dosage = '');
+                  });
+                },
+                icon: const Icon(Icons.add_circle_outline_rounded, color: primaryBlue, size: 20),
+                label: const Text(
+                  'Obat',
+                  style: TextStyle(color: primaryBlue, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: _localMedicines.length,
+              itemBuilder: (context, medIndex) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: TextField(
+                          controller: _nameControllers[medIndex],
+                          decoration: InputDecoration(
+                            labelText: 'Nama Obat',
+                            isDense: true,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 4,
+                        child: TextField(
+                          controller: _dosageControllers[medIndex],
+                          decoration: InputDecoration(
+                            labelText: 'Dosis',
+                            hintText: 'Misal: 1 tab',
+                            isDense: true,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                      if (_localMedicines.length > 1)
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent),
+                          onPressed: () {
+                            setState(() {
+                              _nameControllers[medIndex].dispose();
+                              _dosageControllers[medIndex].dispose();
+                              _nameControllers.removeAt(medIndex);
+                              _dosageControllers.removeAt(medIndex);
+                              _localMedicines.removeAt(medIndex);
+                            });
+                          },
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: darkText,
+                foregroundColor: bgWhite,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () {
+                // Terapkan data teks dari controller ke local model
+                for (int i = 0; i < _localMedicines.length; i++) {
+                  _localMedicines[i].name = _nameControllers[i].text.trim();
+                  _localMedicines[i].dosage = _dosageControllers[i].text.trim();
+                }
+
+                // Bersihkan string kosong yang tidak sengaja ter-submit
+                _localMedicines.removeWhere((m) => (m.name == null || m.name!.isEmpty));
+
+                // Placeholder default jika seluruh baris obat dikosongkan
+                if (_localMedicines.isEmpty) {
+                  _localMedicines.add(MedicineDetail()..name = 'Obat OAT'..dosage = '1 Tab');
+                }
+
+                // Kirim balik data yang valid ke view utama melalui callback
+                widget.onApply(_localMedicines);
+                Navigator.pop(context);
+              },
+              child: const Text('OK, Terapkan Komposisi', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           )
         ],

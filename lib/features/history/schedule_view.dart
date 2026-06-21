@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:isar/isar.dart';
 
 import '../../main.dart';
 import '../../models/patient_profile.dart';
@@ -9,9 +10,9 @@ import '../../models/medication_record.dart';
 import '../../core/database/medication_repository.dart';
 import '../dashboard/dashboard_view.dart';
 
-final allRecordsProvider = FutureProvider<List<MedicationRecord>>((ref) async {
+final allRecordsProvider = StreamProvider<List<MedicationRecord>>((ref) {
   final repo = ref.watch(medicationRepoProvider);
-  return await repo.getAllRecords();
+  return repo.watchAllRecords();
 });
 
 class ScheduleView extends ConsumerWidget {
